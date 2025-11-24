@@ -1,4 +1,4 @@
-REM This is something that should be run during initial setup for everything Win 7 or later.
+REM This is something that should be run during initial setup for everything Win 7 or later. Dependant on use case obviously.
 
 @echo off
 bcdedit /set nx optout
