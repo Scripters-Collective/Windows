@@ -1,3 +1,11 @@
+<#
+The CSV that you are going to pass to this script should be one desired account per line. IE:
+Firstname,Lastname
+James,Halliday
+Jane,Smith
+John,Doe
+#>
+
 $csvPath = Read-Host "Enter path to user list in CSV format."
 
 # Check to see if the user list exists
