@@ -1,3 +1,8 @@
+<#
+Purpose of this script is literally just to disable all local users aside from what ever user accounts are
+defined in the excludeAccounts variable.
+#>
+
 # Accounts to no touchy
 $excludeAccounts = @("Administrator", "Death_Guard")
 
