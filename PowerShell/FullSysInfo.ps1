@@ -224,6 +224,35 @@ catch {
     $report += ""
 }
 
+# Gather and Add PCI/PCIe Devices Info
+$report += "-" * 80
+$report += "PCI/PCIe DEVICE INFORMATION"
+$report += "-" * 80
+try {
+    $pciDevices = Get-CimInstance -ClassName Win32_PnPEntity | Where-Object {
+        $_.DeviceID -like "PCI\*"
+    } | Sort-Object Name
+    
+    $pciCount = 1
+    foreach ($pci in $pciDevices) {
+        $report += "PCI/PCIe Device #$pciCount"
+        $report += "  Name:              $($pci.Name)"
+        $report += "  Description:       $($pci.Description)"
+        $report += "  Manufacturer:      $($pci.Manufacturer)"
+        $report += "  Status:            $($pci.Status)"
+        $report += "  Device ID:         $($pci.DeviceID)"
+        $report += "  Class GUID:        $($pci.ClassGuid)"
+        $report += ""
+        $pciCount++
+    }
+    $report += "Total PCI/PCIe Devices: $($pciCount - 1)"
+    $report += ""
+}
+catch {
+    $report += "Error retrieving PCI/PCIe device information"
+    $report += ""
+}
+
 # Gather and Add Operating System Info
 $report += "-" * 80
 $report += "OPERATING SYSTEM INFORMATION"
