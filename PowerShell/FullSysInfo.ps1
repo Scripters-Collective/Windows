@@ -196,7 +196,6 @@ foreach ($config in $networkConfigs) {
 }
 
 # Gather and Add USB Devices Info
-# ===== USB DEVICES =====
 $report += "-" * 80
 $report += "USB DEVICE INFORMATION"
 $report += "-" * 80
