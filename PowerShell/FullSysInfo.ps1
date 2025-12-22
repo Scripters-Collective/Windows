@@ -1,3 +1,8 @@
+<#
+This tool should gather most if not all of the hardware information for the system that it is run on. Uesful for asset inventories. The only caveat that I have run into with it is that
+when pulling serial number information from Samsung NVMe(s). It is not accurate for that specifically for some reason.
+#>
+
 # Ask for outfile Path
 $outputPath = Read-Host "Enter the path for the output file (e.g., C:\hardware_info.txt)"
 
