@@ -1,6 +1,6 @@
 <#
 The CSV that you are going to pass to this script should be one desired account per line. IE:
-Firstname,Lastname
+Firstname,Lastname <--- CSV headers must be present or everything will error out
 James,Halliday
 Jane,Smith
 John,Doe
