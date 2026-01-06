@@ -7,6 +7,19 @@ John,Doe
 #>
 
 $csvPath = Read-Host "Enter path to user list in CSV format."
+# Check for the existence of local isso group, create if needed
+if (-not (Get-LocalGroup -Name "isso" -ErrorAction SilentlyContinue)) {
+    try {
+        New-LocalGroup -Name 'isso' -Description "Information System Security Officer" -ErrorAction Stop
+        Write-Host "'isso' group created successfully." -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Failed to create group: $_" -ForegroundColor Red
+    }
+}
+else {
+    Write-Host "'isso' group already exists" -ForegroundColor Yellow
+}
 
 # Check to see if the user list exists
 if (-not (Test-Path -Path $csvPath)) {
