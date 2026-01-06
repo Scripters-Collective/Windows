@@ -43,7 +43,7 @@ $defaultPassword = ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force
 # Process each user
  foreach ($user in $users) {
     $fullName = "$(user.FirstName) $($user.LastName)"
-    $username = ($usr.Firstname.Substring(0,1) + $user.LastName).ToLower()
+    $username = ($user.FirstName.Substring(0,1) + $user.LastName).ToLower()
     $privUsername = "$username-priv"
 
     # Create all standard user accounts
