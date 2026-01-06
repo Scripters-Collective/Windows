@@ -42,7 +42,7 @@ $defaultPassword = ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force
 
 # Process each user
  foreach ($user in $users) {
-    $fullName = "$(user.FirstName) $($user.LastName)"
+    $fullName = "$($user.FirstName) $($user.LastName)"
     $username = ($user.FirstName.Substring(0,1) + $user.LastName).ToLower()
     $privUsername = "$username-priv"
 
