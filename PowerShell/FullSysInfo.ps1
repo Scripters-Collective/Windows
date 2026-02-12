@@ -236,7 +236,7 @@ try {
     $pciDevices = Get-CimInstance -ClassName Win32_PnPEntity | Where-Object {
         $_.DeviceID -like "PCI\*"
     } | Sort-Object Name
-    
+
     $pciCount = 1
     foreach ($pci in $pciDevices) {
         $report += "PCI/PCIe Device #$pciCount"
@@ -246,6 +246,34 @@ try {
         $report += "  Status:            $($pci.Status)"
         $report += "  Device ID:         $($pci.DeviceID)"
         $report += "  Class GUID:        $($pci.ClassGuid)"
+        $report += "  Service:           $($pci.Service)"
+        $report += "  Config Mgr Error:  $($pci.ConfigManagerErrorCode)"
+        $report += "  Availability:      $($pci.Availability)"
+
+        # Pull extended driver/resource info from registry via PnP Signed Driver
+        $driverInfo = Get-CimInstance -ClassName Win32_PnPSignedDriver | Where-Object {
+            $_.DeviceID -eq $pci.DeviceID
+        }
+        if ($driverInfo) {
+            $report += "  Driver Provider:   $($driverInfo.DriverProviderName)"
+            $report += "  Driver Version:    $($driverInfo.DriverVersion)"
+            $report += "  Driver Date:       $($driverInfo.DriverDate)"
+            $report += "  Inf Name:          $($driverInfo.InfName)"
+            $report += "  Hardware ID:       $($driverInfo.HardWareID)"
+            $report += "  Compatible ID:     $($driverInfo.CompatID)"
+            $report += "  Device Class:      $($driverInfo.DeviceClass)"
+            $report += "  Location:          $($driverInfo.Location)"
+        }
+
+        # Pull allocated resources (IRQ, Memory Range, I/O Port)
+        $resources = Get-CimInstance -ClassName Win32_PnPAllocatedResource -ErrorAction SilentlyContinue |
+            Where-Object { $_.Dependent -like "*$($pci.DeviceID.Replace('\','\\'))*" }
+        if ($resources) {
+            foreach ($res in $resources) {
+                $report += "  Resource:          $($res.Antecedent)"
+            }
+        }
+
         $report += ""
         $pciCount++
     }
@@ -253,9 +281,40 @@ try {
     $report += ""
 }
 catch {
-    $report += "Error retrieving PCI/PCIe device information"
+    $report += "Error retrieving PCI/PCIe device information: $_"
     $report += ""
 }
+
+# Gather and Add System Environment Variables
+$report += "-" * 80
+$report += "SYSTEM ENVIRONMENT VARIABLES"
+$report += "-" * 80
+try {
+    $sysVars = [System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Machine)
+    $sortedVars = $sysVars.GetEnumerator() | Sort-Object Name
+
+    foreach ($var in $sortedVars) {
+        $report += "  $($var.Name)"
+        # Split PATH-style variables for readability
+        if ($var.Value -match ";") {
+            $values = $var.Value -split ";"
+            foreach ($val in $values) {
+                if (-not [string]::IsNullOrWhiteSpace($val)) {
+                    $report += "    -> $val"
+                }
+            }
+        }
+        else {
+            $report += "    -> $($var.Value)"
+        }
+        $report += ""
+    }
+}
+catch {
+    $report += "Error retrieving system environment variables: $_"
+    $report += ""
+}
+
 
 # Gather and Add Operating System Info
 $report += "-" * 80
