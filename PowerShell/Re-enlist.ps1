@@ -19,7 +19,7 @@ if (-not (Test-Path -Path $filePath)) {
 # Read usernames from a provided File
 try {
 	$usernames = Get-Content -Path $filePath -ErrorAction Stop
-	Write-Host "Loaded $(usernames.Count) usernames from file`n" -ForegroundColor Cyan
+	Write-Host "Loaded $($usernames.Count) usernames from file`n" -ForegroundColor Cyan
 }
 catch {
 	Write-Host "Error reading file: $_" -ForegroundColor Red
@@ -33,7 +33,7 @@ foreach ($username in $usernames) {
 	try {
 		$user = Get-LocalUser -Name $username -ErrorAction Stop
 		
-		if ($user.Enabled -eq $false_ {
+		if ($user.Enabled -eq $false) {
 			Enable-LocalUser -Name $username -ErrorAction Stop
 			Write-Host "Enabled: $username" -ForegroundColor Green
 		}
