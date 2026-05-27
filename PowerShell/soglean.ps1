@@ -23,9 +23,13 @@ in an effort to keep the output nice and clean.
 
 #1
 # Add some information to distinguish the system the script is being run on and how it is desired to be stored.
-$networkShare = "\\SERVER\Share\SoftwareRepors"
-$fileName = "$($env:COMPUTERNAME)_$(Get-Date -Format 'yyyy-MM-dd').txt"
-$outputPath = Join-Path -Path $networkShare -ChildPath $fileName
+$networkShare = "\\SERVER\Share\SoftwareReports"
+$dateStamp = Get-Date -Format 'yyyy-MM-dd'
+$baseFileName = "$($env:COMPUTERNAME)_$dateStamp"
+
+$softwareOutput = Join-Path -Path $networkShare -ChildPath "${baseFileName}_Software.txt"
+$dllOutput = Join-Path -Path $networkShare -ChildPath "${baseFileName}_DLLs.txt"
+$driverOutput = Join-Path -Path $networkShare -ChildPath "${baseFileName}_Drivers.txt"
 
 # Ensure that network path is available
 if (-not (Test-Path $networkShare)) {
