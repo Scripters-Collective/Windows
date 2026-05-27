@@ -4,9 +4,9 @@ the total system overview when used alongside FSI+. #>
 <# 
 
 TODO:
-#2
-#3
-#4
+# Software data dump function
+# DLL dump / backup function
+# Driver dump / backup function
 
 #>
 
@@ -28,7 +28,8 @@ $dateStamp = Get-Date -Format 'yyyy-MM-dd'
 $baseFileName = "$($env:COMPUTERNAME)_$dateStamp"
 
 $softwareOutput = Join-Path -Path $networkShare -ChildPath "${baseFileName}_Software.txt"
-$dllOutput = Join-Path -Path $networkShare -ChildPath "${baseFileName}_DLLs.txt"
+$dllSystemOutput = Join-Path -Path $networkShare -ChildPath "${baseFileName}_System_DLLs.txt"
+$dllProgramsOutput = Join-Path -Path $networkShare -ChildPath "${baseFileName}_Program_DLLs.txt"
 $driverOutput = Join-Path -Path $networkShare -ChildPath "${baseFileName}_Drivers.txt"
 
 # Ensure that network path is available
@@ -46,7 +47,63 @@ Write-Host "`nGathering Software / DLL / Driver information... This may take a m
 -   Everything on the system
 -   The versions of each
 -   The date of the installs if possible
+-   Breakdown sofware pull from 3 sources (Registry, AppX, and Winget)
 #>
+
+# First will be function for registry info pull
+function Get-RegistrySoftware {
+    $section = @()
+    $section += "-" * 80
+    $section += "INSTALLED SOFTWARE (REGISTRY)"
+    $section += "-" * 80
+
+    $registryPaths = @(
+        @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"; Arch = "64-bit" },
+        @{ Path = "HKLM:\SOFTWARE\Wow6432Notde\Microsoft\Windows\CurrentVersion\*"; Arch = "32-bit" },
+        @{ Path = "HMCU:\SOFTWARE\Microsoft\Windows\CurrnetVersion\Uninstall\*"; Arch = "User" }
+    )
+
+    $entries = @()
+    foreach ($regEntry in $registryPaths) {
+        try {
+            $items = Get-ItemProperty -Path $regEntry.Path -ErrorAction SilentlyContinue |
+                Where-Object { $_.DisplayName -and $_.DisplayName.Trim() -ne "" }
+            foreach ($item in $items) {
+                $entries =+ [PSCustomObject]@{
+                    Name    = $item.DisplayName
+                    Version = if ($item.DisplayVersion) { item.DisplayVersion } else { "N/A " }
+                    Publisher = if ($item.Publisher) { item.Publisher } else { "N/A" }
+                    InstallDate = if ($item.InstallDate) { item.InstallDate } else { "N/A" }
+                    Location = if ($item.Location) { item.InstallLocation } else { "N/A" }
+                    Architecture = $regEntry.Arch
+                }
+            }
+        }
+        catch {
+            $section += "Error reading registry path: $($regEntry.Path) - $_"
+        }
+    }
+    # Deduplicates by name and version, then sort by name
+    $entries = $entries | Sort-Object Name, Version, -Unique
+
+    $count = 1
+    foreach ($entry in $entries) {
+        $section += "Entry #$count"
+        $section += " Name:  $($entry.Name)"
+        $section += " Version:  $($entry.Version)"
+        $section += " Publisher:    $($entry.Publisher)"
+        $section += " Install Date: $($entry.InstallDate)"
+        $section += " Install Location: $($entry.InstallLocation)"
+        $section += " Architecture: $($entry.Architecture)"
+        $section += ""
+        $count++
+    }
+
+    $section += "Total Registry-Tracked Software: $($entries.Count)"
+    $section += ""
+    return $section
+}
+
 
 #3
 <# Function to gather a complete DLL dump of everything on the system and possibly
