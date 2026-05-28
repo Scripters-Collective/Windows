@@ -104,6 +104,51 @@ function Get-RegistrySoftware {
     return $section
 }
 
+function Get-AppxSoftware {
+    $section = @()
+    $section += "-" * 80
+    $section += "INSTALLED SOFTWARE (REGISTRY)"
+    $section += "-" * 80
+
+    try {
+        $appxPackages = Get-AppxPackage -AllUsers -ErrorAction Stop |
+            Sort-Object Name
+    }
+    catch {
+        $section += "Error retrieving AppX packages: $_"
+        $section += ""
+        return $section
+    }
+
+    $count = 1
+    foreach ($pkg in $appxPackages) {
+        $installDate = "N/A"
+        if ($pkg.InstallLocation -and (Test-Path $pkg.InstallLocation)) {        
+            try {
+                $installDate = (Get-Item $pkg.InstallLocation -ErrorAction Stop).CreationTime.ToString("yyyy-MM-dd HH:mm:ss")
+            }
+            catch {
+                $installDate = "N/A"
+            }
+        }
+
+        $publisher = $pkg.Publisher
+        if ($publisher -match 'CN([^,]+)') {
+            $publisher = $matches[1]
+        }
+
+        $section += "Entry #$count"
+        $section += " Name: $($pkg.Name)"
+        $section += " Version:  $($pkg.Version)"
+        $section += " Publisher:    $publisher"
+        $section += " Install Date: $installDate"
+        $section += " Install Location: $($pkg.InstallLocation)"
+        $section += " Architecture: $($pkg.Architecture)"
+        $section += " Package Full Name:    $($pkg.PackageFullName)"
+        $section += ""
+        $count++
+    }
+}
 
 #3
 <# Function to gather a complete DLL dump of everything on the system and possibly
