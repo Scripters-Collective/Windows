@@ -150,6 +150,116 @@ function Get-AppxSoftware {
     }
 }
 
+function Get-WingetSoftware {
+    $section = @()
+    $section += "-" * 80
+    $section += "INSTALLED SOFTWARE (WINGET)"
+    $section += "-" * 80
+
+    # Check if winget is available
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        $section += "winget is not available on this system."
+        $section += ""
+        return $section
+    }
+
+    try {
+        # Capture output, but get rid of winget fluff
+        $wingetOutput = winget list --accept-source-agreements 2>&1 |
+            Out-String -Stream |
+            Where-Object { $_ -notmatch '^\s*[\\\|\/\-]\s*$' -and $_.Trim() -ne "" }
+    }
+    catch {
+        $section += "Error running winget: $_"
+        $section += ""
+        return $section
+    }
+
+    # Find header row for findout column positions
+    $hearderIndex = -1
+    for ($i = 0; $i -lt $wingetOutput.Count; $i++) {
+        if ($wingetOutput[$i] -match '^Name\s+Id\s+Version') {
+            $hearderIndex= $i
+            break
+        }
+    }
+
+    if ($hearderIndex -eq -1) {
+        $section += "Could not parse winget output (header row not found)."
+        $section += ""
+        return $section
+    }
+
+    # Parse column positions from header line
+    $headerLine = $wingetOutput[$headerIndex]
+    $idCol      = $headerLine.IndexOf("Id")
+    $versionCol = $headerLine.IndexOf("Version")
+    $availCol   = $headerLine.IndexOf("Available")
+    $sourceCol  = $headerLine.IndexOf("Source")
+
+    $dataLines = $wingetOutput[($headerIndex + 2)..($wingetOutput.Count - 1)]
+
+    $entries = @()
+    foreach ($line in $dataLines) {
+       # Skip summary lines that talk about available upgrades
+       if ($line -match '^\d+\s+(upgrades|package)' -or $line.Trim() -eq "") {
+            continue
+       }
+       
+       # Pad short lines so substring ops don't completely fail
+       $paddedLine = $line.PadRight(200)
+
+       try {
+            $name   = $paddedLine.Substring(0, $idCol).Trim()
+            $id     = $paddedLine.Substring($idCol, $versionCol - $idCol).Trim()
+
+            if ($availCol -gt 0) {
+                $version    = $paddedLine.Substring($versionCol, $availCol - $versionCol).Trim()
+                $available  = $paddedLine.Substring($availCol, $sourceCol - $availCol).Trim()
+                $source     = $paddedLine.Substring($sourceCol).Trim()
+            }
+            else {
+                $version    = $paddedLine.Substring($versionCol, $sourceCol - $versionCol).Trim()
+                $available  = ""
+                $source     = $paddedLine.Substring($sourceCol).Trim()
+            }
+
+            if ($name -and $id) {
+                $entries += [PSCustomObject]@{
+                    Name        = $name
+                    Id          = $id
+                    Version     = $version
+                    Available   = $available
+                    Source      = $source
+                }
+            }
+       }
+       catch {
+            # Skip bad lines silently
+            continue
+       }
+    }
+    
+    $count = 1
+    foreach ($entry in $entries) {
+        $section += "Entry #$count"
+        $section += "   Name:           $($entry.Name)"
+        $section += "   ID:             $($entry.Id)"
+        $section += "   Version:        $($entry.Version)"
+        if ($entry.Available) {
+            $section += "   Available:      $($entry.Available)"
+        }
+        if ($entry.Source) {
+            $section += "   Source:         $($entry.Source)"
+        }
+        $section += ""
+        $count++
+    }
+
+    $section += "Total Winget-Tracked Software: $($entries.Count)"
+    $section += ""
+    return $section
+}
 #3
 <# Function to gather a complete DLL dump of everything on the system and possibly
 create a backup of the DLLs that can be exported #>
