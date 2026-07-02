@@ -260,8 +260,54 @@ function Get-WingetSoftware {
     $section += ""
     return $section
 }
+
+function Invoke-SoftwareInventory {
+    Write-Host "[*] Gathering Software inventory..." -ForegroundColor Cyan
+
+    $softwareReport = @()
+    $softwareReport += "=" * 80
+    $softwareReport += "Software Inventory Report"
+    $softwareReport += "Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    $softwareReport += "Computer Name: $env:COMPUTERNAME"
+    $softwareReport += "*" * 80
+    $softwareReport += ""
+
+    Write-Host "    [>] Scanning registry..." -ForegroundColor DarkGray
+    $softwareReport += Get-RegistrySoftware
+    
+    Write-Host "    [>] Scanning AppX packages..." -ForegroundColor DarkGray
+    $softwareReport += Get-AppxSoftware
+
+    Write-Host "    [>] Scanning winget..." -ForegroundColor DarkGray
+    $softwareReport += Get-WingetSoftware
+
+    $softwareReport += "=" * 80
+    $softwareReport += "End of Software Report"
+    $softwareReport += "=" * 80
+
+    try {
+        $softwareReport | Out-File -FilePath $softwareOutput -Encoding UTF8 -ErrorAction Stop
+        Write-Host "[+] Software inventory saved to: $softwareOutput" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "[!] Failed to write software report to network share: $_" -ForegroundColor Red
+        $fallbackPath = "C:\Temp\$(Split-Path $softwareOutput -Leaf)"
+        Write-Host "    Attempting fallback: $fallbackPath" -ForegroundColor Yellow
+        try {
+            if (-not (Test-Path "C:\Temp")) {
+                New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null
+            }
+            $softwareReport | Out-File -FilePath $fallbackPath -Encoding UTF8 -ErrorAction Stop
+            Write-Host "[+] Software inventory saved to fallback: $fallbackPath" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "[! Fallback write also failed: $_]" -ForegroundColor Red
+        }
+    }
+
+}
 #3
-<# Function to gather a complete DLL dump of everything on the system and possibly
+<# Function to gather a complete DLL dump of everything on the system and possjlbly
 create a backup of the DLLs that can be exported #>
 
 #4
