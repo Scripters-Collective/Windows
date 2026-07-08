@@ -42,7 +42,7 @@ if (-not (Test-Path $networkShare)) {
 Write-Host "Output will be saved to: $outputPath" -ForegroundColor Cyan
 Write-Host "`nGathering Software / DLL / Driver information... This may take a moment. `n" -ForegroundColor Cyan
 
-#2
+#2 (Done - so far)
 <# Function to gather a complete software dump consisting of:
 -   Everything on the system
 -   The versions of each
@@ -307,9 +307,182 @@ function Invoke-SoftwareInventory {
 
 }
 #3
-<# Function to gather a complete DLL dump of everything on the system and possjlbly
+<# Function to gather a complete DLL dump of everything on the system and possibly
 create a backup of the DLLs that can be exported #>
+function Get-DllInfo {
+    param (
+        [Parameter(Mandatory)]
+        [string[]]$ScanPaths,
+        [Parameter(Mandatory)]
+        [string]$SectionTitle
+    )
 
+    $section += @()
+    $section += "-" * 80
+    $section += $SectionTitle
+    $section += "-" * 80
+
+    $allDlls = @()
+    foreach ($path in $ScanPaths) {
+        if (-not (Test-Path $path)) {
+            $section += "Path not found, skipping: $path"
+            $section += ""
+            continue
+        }
+        try {
+            $found = Get-GhildItem -Path $path -Filter *.dll -Recurse -Force -ErrorAction SilentlyContinue -FilePath
+            $allDlls += $found
+        }
+        catch {
+            $section += "Error scanning $path : $_"
+        }
+    }
+
+    $totalCount = $allDlls.Count
+    $section += "Scanned $totalCount DLL files across $($ScanPaths.Count) locations(s)."
+    $section += ""
+
+    $count = 1
+    foreach ($dll in $allDlls) {
+        # Progress indicator to let know things are still running
+        if ($count % 500 -eq 0) {
+            Write-Progress -Activity "Processing DLLs" -Status "$count of $totalCount" -PercentComplete (($count / $totalCount) * 100)
+        }
+
+        # Version info pull
+        $versionInfo = $null
+        try {
+            $versionInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($dll.FullName)
+        }
+        catch {
+            # Catch in place to help silently continuing
+        }
+        
+        $signatureStatus = "Unknown"
+        try {
+            $sig = Get-AuthenticodeSignature -FilePath $dll.Full -ErrorAction SilentlyContinue
+            if ($sig) {
+                $signatureStatus = $sit.Status.ToString()
+                if (sig.SignerCertificate) {
+                    $signer = ($sig.SignerCertificate.Subject -split ',')[0] -replace '^CN=', ''
+                }
+                else {
+                    $signer = "N/A"
+                }
+            }
+            else {
+                $signer = "N/A"
+            }
+        }
+        catch {
+            $signer = "N/A"    
+        }
+        
+        $fileSizeKB = [math]::Round($dll.Length / 1KB, 2)
+        
+        $section += "DLL #$count"
+        $section += "   Name:       $($dll.Name)"
+        $section += "   Full Path:  $($dll.FullName)"
+        if ($versionInfo) {
+            $section += " File Version:     $(if ($versionInfo.Fileversion)     { $versionInfo.FileVersion}     else { 'N/A'})"
+            $section += " Product Name:     $(if ($versionInfo.ProductName)     { $versionInfo.ProductName}     else { 'N/A'})"
+            $section += " Company:          $(if ($versionInfo.CompanyName)     { $versionInfo.CompanyName}     else { 'N/A'})"
+            $section += " Description:      $(if ($versionInfo.FileDescription) { $versionInfo.FileDescription} else {'N/A'})"
+        }
+        else {
+            $section += " File Version:     N/A (could not read version info)"
+        }
+        $section += " File Size:        $fileSizeKB KB"
+        $section += " Last Modified:    $($dll.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss'))"
+        $section += " Signature Status: $signatureStatus"
+        $section += " Signer:           $signer"
+        $section += ""
+        $count++
+    }
+
+    Write-Progress -Activity "Processing DLLs" -Completed
+    $section += "Total DLLs Processed: $totalCount"
+    $section += ""
+    return $section
+}
+
+function Get-SystemDlls {
+    $scanPaths = @(
+        "$env:SystemRoot\System32",
+        "$env:SystemRoot\SysWOW64"
+    )
+    return Get-DllInfo -ScanPaths $scanPaths -SectionTitle "SYSTEM DLLs (System32 / sysWOW64)"
+}
+
+function Get-ProgramDlls {
+    $scanPaths = @(
+        "$env:ProgramFiles",
+        "${env:ProgramFiles(x86)}"
+    )
+    return Get-DllInfo -ScanPaths $scanPaths -SectionTitle "PROGRAM DLLs (Program Files / Program Files x86)"
+}
+
+function Invoke-DllInventory {
+    Write-Host "[*] Gathering DLL Inventory..." -ForegroundColor Cyan
+    Write-Host "    This will take several minutes due to signature veriffication." -ForegroundColor DarkGray
+
+    # System DLLs
+    $systemReport = @()
+    $systemReport += "=" * 80
+    $systemReport += "SYSTEM DLL INVENTORY REPORT"
+    $systemReport += "Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    $systemReport += "Computer Name: $env:COMPUTERNAME"
+    $systemReport += "=" * 80
+    $systemReport += ""
+    $systemReport += Get-SystemDlls
+    $systemReport += "=" * 80
+    $systemReport += "END OF SYSTEM DLL REPORT"
+    $systemReport += "="
+
+    Write-DllReportToFile -Report $systemReport -OutputFilePath $dllSystemOutput -Label "System DLL inventory"
+
+    # Program DLLs
+    Write-Host " [>] Scanning Program Files / Program Files (x86)..." -ForegroundColor DarkGray
+    $programReport =@()
+    $programReport += "=" * 80
+    $programReport += "PROGRAM DLL INVENTORY REPORT"
+    $programReport += "Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    $programReport += "Computer Name: $env:COMPUTERNAME"
+    $programReport += "=" * 80
+    $programReport += ""
+    $programReport += Get-ProgramDlls
+    $programReport += "=" * 80
+    $programReport += "END OF PROGRAM DLL REPORT"
+    $programReport += "=" * 80
+}
+
+function Write-DllReportToFile {
+    param (
+        [Parameter(Mandatory)][array]$Report,
+        [Parameter(Mandatory)][array]$OutputFilePath,
+        [Parameter(Mandatory)][array]$Label
+    )
+
+    try {
+        $Report | Out-File -FilePath $OutputFilePath -Encoding UTF8 -ErrorAction Stop
+        Write-Host "[+] $Label saved to: $OutputFilePath" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "[!] Failed to write $Label to network share $_" -ForegroundColor Red
+        $fallbackPath = "C:\Temp\$(Split-Path $OutputFilePath -Leaf)"
+        Write-Host "    Attempting fallback: $fallbackPath" -ForegroundColor Yellow
+        try {
+            if (-not (Test-Path "C:\Temp")) {
+                New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null
+            }
+            $Report | Out-File -FilePath $fallbackPath -Encoding UTF8 -ErrorAction Stop
+            Write-Host "[+] $Label saved to fallback: $fallbackPath" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "[!] Fallback write also failed for $Label" -ForegroundColor Red
+        }
+    }
+}
 #4
 <# Function to gather and provide a complete driver dump and possibly create a backup
 of the drivers that can be exported #>
