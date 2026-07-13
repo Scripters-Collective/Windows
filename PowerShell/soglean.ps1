@@ -511,7 +511,7 @@ function Get-SoftwareDrivers {
         $section += " Class:            $(if ($drv.Class) { $drv.Class } else { "N/A "})"
         $section += " Version:          $(if ($drv.ClassDescription) { $drv.ClassDescription } else { "N/A" })"
         $section += " Date:             $(if ($drv.Date) { $drv.Date } else { "N/A" })"
-        $section += " Boot Critical:    $(if ($drv.BootCritical))"
+        $section += " Boot Critical:    $($drv.BootCritical)"
         $section += ""
         $count++
     }
