@@ -486,3 +486,105 @@ function Write-DllReportToFile {
 #4
 <# Function to gather and provide a complete driver dump and possibly create a backup
 of the drivers that can be exported #>
+
+function Get-SoftwareDrivers {
+    $section = @()
+    $section += "-" * 80
+    $section += "SOFTWARE DRIVERS (Third-Party /Function Drivers)"
+    $section += "-" * 80
+
+    try {
+        $drivers = Get-WindowsDriver -Online -All -ErrorAction Stop | Sort-Object ProviderName, Driver
+    }
+    catch {
+        $section += "Error retrieving software drivers: $_"
+        $section += ""
+        return $section
+    }
+
+    $count
+    foreach ($drv in $drivers) {
+        $section += "Driver #$count"
+        $section += " Published Name:   $($drv.Driver)"
+        $section += " Original File:    $(if ($drv.OriginalFileName) { $drv.OriginalFileName } else { 'N/A' })"
+        $section += " Provider:         $(if ($drv.Provider) { $drv.Provdier } else { "N/A" })"
+        $section += " Class:            $(if ($drv.Class) { $drv.Class } else { "N/A "})"
+        $section += " Version:          $(if ($drv.ClassDescription) { $drv.ClassDescription } else { "N/A" })"
+        $section += " Date:             $(if ($drv.Date) { $drv.Date } else { "N/A" })"
+        $section += " Boot Critical:    $(if ($drv.BootCritical))"
+        $section += ""
+        $count++
+    }
+
+    $section += "Total Software Drivers: $($drivers.Count)"
+    $section += ""
+    return $section
+}
+function Get-DeviceDrivers {
+    $section = @()
+    $section += "-" * 80
+    $section += "Device Drivers (Hardware-Bound)"
+    $section += ""
+
+    try {
+        $drivers = Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction Stop |
+            Where-Object { $_.DeviceName } |
+            Sort-Object DeviceClass, DeviceName
+    }
+    catch {
+        $section += "Error retrieving device drivers: $_"
+        $section += ""
+        return $section
+    }
+
+# Get PnP device status for reference    
+    $pnpStatusMap = @()
+    try {
+        Get-PnpDevice -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.InstanceId) {
+                $pnpStatusMap[$_.InstanceId] = $_.Status
+            }
+        }
+    }
+    catch {
+        # If Get-PnpDevice fails there will just be no output
+    }
+
+    $count = 1
+    foreach ($drv in $drivers) {
+        $status = if ($pnpStatusMap.ContainsKey($drv.DeviceID)) {
+            $pnpStatusMap[$drv.DeviceId]
+        }
+        else {
+            "Unknown"
+        }
+
+        $driverDate = "N/A"
+        if ($drv.DriverDate) {
+            try {
+                $driverDate = ([Management.ManagementDateTimeConverter]::ToDateTime($drv.DriverDate)).ToString('yyy-MM-dd')
+            }
+            catch {
+                $driverDate = "N/A"
+            }
+        }
+
+        $section += "Device #$count"
+        $section += "  Device Name:       $($drv.DeviceName)"
+        $section += "  Device Class:      $(if ($drv.DeviceClass) { $drv.DeviceClass } else { 'N/A' })"
+        $section += "  Manufacturer:      $(if ($drv.Manufacturer) { $drv.Manufacturer } else { 'N/A' })"
+        $section += "  Driver Provider:   $(if ($drv.DriverProviderName) { $drv.DriverProviderName } else { 'N/A' })"
+        $section += "  Driver Version:    $(if ($drv.DriverVersion) { $drv.DriverVersion } else { 'N/A' })"
+        $section += "  Driver Date:       $driverDate"
+        $section += "  INF Name:          $(if ($drv.InfName) { $drv.InfName } else { 'N/A' })"
+        $section += "  Is Signed:         $($drv.IsSigned)"
+        $section += "  Hardware ID:       $(if ($drv.HardWareID) { $drv.HardWareID } else { 'N/A' })"
+        $section += "  Status:            $status"
+        $section += ""
+        $count++
+    }
+
+    $section += "Total Device Drivers: $($drivers.Count)"
+    $section += ""
+    return $section
+}
